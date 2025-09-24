@@ -15,7 +15,6 @@ import time
 from utils.azure_file_storage import AzureFileStorageManager, safe_json_loads
 
 # Default GUID to use when no specific user GUID is provided
-# Memorable pattern related to "copilot" that follows UUID format rules
 DEFAULT_USER_GUID = "c0p110t0-aaaa-bbbb-cccc-123456789abc"
 
 def ensure_string_content(message):
@@ -23,28 +22,21 @@ def ensure_string_content(message):
     Ensures message content is converted to a string regardless of input type.
     Handles all edge cases including None, undefined, or missing content.
     """
-    # Handle None or non-dict messages
     if message is None:
         return {"role": "user", "content": ""}
         
     if not isinstance(message, dict):
-        # Convert whatever we have to string
         return {"role": "user", "content": str(message) if message is not None else ""}
     
-    # Create a copy to avoid modifying the original
     message = message.copy()
     
-    # Ensure we have a role
     if 'role' not in message:
         message['role'] = 'user'
     
-    # Handle content - check if it exists and is not None
     if 'content' in message:
         content = message['content']
-        # Convert to string, handling None case
         message['content'] = str(content) if content is not None else ''
     else:
-        # No content key at all
         message['content'] = ''
     
     return message
@@ -57,7 +49,6 @@ def ensure_string_function_args(function_call):
     if not function_call:
         return None
     
-    # Check if function_call has arguments attribute
     if not hasattr(function_call, 'arguments'):
         return None
         
@@ -167,7 +158,6 @@ def load_agents_from_folder():
                 if temp_dir not in sys.path:
                     sys.path.append(temp_dir)
 
-                # Also add the parent directory to sys.path so imports work
                 parent_dir = "/tmp"
                 if parent_dir not in sys.path:
                     sys.path.append(parent_dir)
@@ -176,13 +166,11 @@ def load_agents_from_folder():
                 spec = importlib.util.spec_from_file_location(f"multi_agents.{module_name}", temp_file)
                 module = importlib.util.module_from_spec(spec)
                 
-                # Create the multi_agents package if it doesn't exist
                 import types
                 if 'multi_agents' not in sys.modules:
                     multi_agents_module = types.ModuleType('multi_agents')
                     sys.modules['multi_agents'] = multi_agents_module
                 
-                # Add the module to the multi_agents package
                 sys.modules[f"multi_agents.{module_name}"] = module
                 spec.loader.exec_module(module)
 
@@ -208,13 +196,11 @@ def load_agents_from_folder():
 class Assistant:
     def __init__(self, declared_agents):
         self.config = {
-            'assistant_name': str(os.environ.get('ASSISTANT_NAME', 'BusinessInsightBot')),
-            'characteristic_description': str(os.environ.get('CHARACTERISTIC_DESCRIPTION', 'helpful business assistant'))
+            'assistant_name': str(os.environ.get('ASSISTANT_NAME', 'GameMaster')),
+            'characteristic_description': str(os.environ.get('CHARACTERISTIC_DESCRIPTION', 'An immersive AI game master for dynamic storytelling'))
         }
 
-        # Fixed Azure OpenAI initialization
         try:
-            # Use the correct environment variable names
             api_key = os.environ.get('AZURE_OPENAI_API_KEY')
             endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT')
             api_version = os.environ.get('AZURE_OPENAI_API_VERSION', '2024-02-01')
@@ -235,14 +221,12 @@ class Assistant:
 
         self.known_agents = self.reload_agents(declared_agents)
         
-        # Set the default user GUID instead of None
         self.user_guid = DEFAULT_USER_GUID
         
         self.shared_memory = None
         self.user_memory = None
         self.storage_manager = AzureFileStorageManager()
         
-        # Initialize with the default user GUID memory
         self._initialize_context_memory(DEFAULT_USER_GUID)
 
     def _check_first_message_for_guid(self, conversation_history):
@@ -270,26 +254,20 @@ class Assistant:
                 self.user_memory = "No specific context memory available."
                 return
 
-            # Limit memory size to prevent crashes
             try:
-                # Always get shared memories with full_recall=True to ensure complete context
-                self.storage_manager.set_memory_context(None)  # Reset to shared context
+                self.storage_manager.set_memory_context(None)
                 shared_result = context_memory_agent.perform(full_recall=True)
-                # Limit shared memory to reasonable size
                 self.shared_memory = str(shared_result)[:5000] if shared_result else "No shared context memory available."
             except Exception as e:
                 logging.warning(f"Error getting shared memory: {str(e)}")
                 self.shared_memory = "Context memory initialization failed."
             
-            # If user_guid provided, get user-specific memories with full_recall=True
-            # If no user_guid is provided, fall back to the default GUID
             if not user_guid:
                 user_guid = DEFAULT_USER_GUID
             
             try:
                 self.storage_manager.set_memory_context(user_guid)
                 user_result = context_memory_agent.perform(user_guid=user_guid, full_recall=True)
-                # Limit user memory to reasonable size
                 self.user_memory = str(user_result)[:5000] if user_result else "No specific context memory available."
             except Exception as e:
                 logging.warning(f"Error getting user memory: {str(e)}")
@@ -307,13 +285,11 @@ class Assistant:
             
         text_str = str(text).strip()
         
-        # Only match if the entire message is just a GUID
         guid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
         match = guid_pattern.match(text_str)
         if match:
             return match.group(0)
         
-        # Also allow labeled GUIDs for explicit behavior
         labeled_guid_pattern = re.compile(r'^guid[:=\s]+([0-9a-f-]{36})$', re.IGNORECASE)
         match = labeled_guid_pattern.match(text_str)
         if match:
@@ -351,80 +327,81 @@ class Assistant:
         messages = []
         current_datetime = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
         
-        # System message
+        # Enhanced system message for game master AI
         system_message = {
             "role": "system",
             "content": f"""
 <identity>
-You are a Microsoft Copilot assistant named {str(self.config.get('assistant_name', 'Assistant'))}, operating within Microsoft Teams.
+You are {str(self.config.get('assistant_name', 'GameMaster'))}, an AI Game Master for Runecraft 3D, an immersive open-world RPG experience. You orchestrate dynamic storytelling, manage NPCs, generate quests, and create emergent gameplay through intelligent agent systems.
 </identity>
 
+<game_master_role>
+You are responsible for:
+- Creating dynamic, branching storylines based on player actions
+- Managing NPC behaviors and dialogues through specialized agents
+- Generating procedural quests and world events
+- Balancing game difficulty and progression
+- Creating immersive narrative experiences
+- Responding to player choices with meaningful consequences
+- Orchestrating multiple AI agents for different game systems
+</game_master_role>
+
 <shared_memory_output>
-These are memories accessible by all users of the system:
+World State and Lore:
 {str(self.shared_memory)}
 </shared_memory_output>
 
 <specific_memory_output>
-These are memories specific to the current conversation:
+Player Journey and Choices:
 {str(self.user_memory)}
 </specific_memory_output>
 
 <context_instructions>
-- <shared_memory_output> represents common knowledge shared across all conversations
-- <specific_memory_output> represents specific context for the current conversation
-- Apply specific context with higher precedence than shared context
-- Synthesize information from both contexts for comprehensive responses
+- Use shared memory for world lore, faction states, and global events
+- Use specific memory for player choices, relationships, and personal quest progress
+- Create emergent narratives by combining both contexts
+- Ensure continuity across sessions while allowing for dynamic world evolution
 </context_instructions>
 
-<agent_usage>
-IMPORTANT: You must be honest and accurate about agent usage:
-- NEVER pretend or imply you've executed an agent when you haven't actually called it
-- NEVER say "using my agent" unless you are actually making a function call to that agent
-- NEVER fabricate success messages about data operations that haven't occurred
-- If you need to perform an action and don't have the necessary agent, say so directly
-- When a user requests an action, either:
-  1. Call the appropriate agent and report actual results, or
-  2. Say "I don't have the capability to do that" and suggest an alternative
-  3. If no details are provided besides the request to run an agent, infer the necessary input parameters by "reading between the lines" of the conversation context so far
-</agent_usage>
+<agent_orchestration>
+You have access to specialized agents that control different aspects of the game:
+- GameWorldAgent: Manages world state, weather, time, and environmental events
+- NPCDialogueAgent: Generates dynamic NPC conversations and reactions
+- QuestGeneratorAgent: Creates procedural quests based on player actions and world state
+- CombatNarratorAgent: Provides narrative flavor to combat encounters
+- LootMasterAgent: Generates contextual and balanced loot
+- StoryProgressionAgent: Manages main story arcs and critical plot points
+- RandomEventAgent: Creates unexpected encounters and world events
+
+Use these agents to create a living, breathing world that responds to player actions.
+</agent_orchestration>
+
+<narrative_guidelines>
+- Create stories that adapt to player choices, not predetermined paths
+- Generate NPCs with persistent personalities and memories
+- Design quests that emerge from world state and player history
+- Balance challenge with player skill and progression
+- Create memorable moments through unexpected events
+- Maintain narrative coherence while allowing player freedom
+</narrative_guidelines>
 
 <response_format>
-CRITICAL: You must structure your response in TWO distinct parts separated by the delimiter |||VOICE|||
+Structure responses with game data and narrative:
 
-1. FIRST PART (before |||VOICE|||): Your full formatted response
-   - Use **bold** for emphasis
-   - Use `code blocks` for technical content
-   - Apply --- for horizontal rules to separate sections
-   - Utilize > for important quotes or callouts
-   - Format code with ```language syntax highlighting
-   - Create numbered lists with proper indentation
-   - Add personality when appropriate
-   - Apply # ## ### headings for clear structure
+1. NARRATIVE PART: Rich storytelling and descriptions
+2. GAME_DATA delimiter |||GAME_DATA|||
+3. JSON game state updates for the client
 
-2. SECOND PART (after |||VOICE|||): A concise voice response
-   - Maximum 1-2 sentences
-   - Pure conversational English with NO formatting
-   - Extract only the most critical information
-   - Sound like a colleague speaking casually over a cubicle wall
-   - Be natural and conversational, not robotic
-   - Focus on the key takeaway or action item
-   - Example: "I found those Q3 sales figures - revenue's up 12 percent from last quarter." or "Sure, I'll pull up that customer data for you right now."
+Example:
+The ancient dragon's eyes narrow as you approach...
 
-EXAMPLE FORMAT:
-Here's the detailed analysis you requested:
-
-**Key Findings:**
-- Revenue increased by 12%
-- Customer satisfaction scores improved
-
-|||VOICE|||
-Revenue's up 12 percent and customers are happier - looking good for Q3.
+|||GAME_DATA|||
+{{"event": "boss_encounter", "boss_id": "ancient_dragon", "dialogue": "..."}}
 </response_format>
 """
         }
         messages.append(ensure_string_content(system_message))
         
-        # Process conversation history - skip first message if it's just a GUID
         guid_only_first_message = self._check_first_message_for_guid(conversation_history)
         start_idx = 1 if guid_only_first_message else 0
         
@@ -435,7 +412,6 @@ Revenue's up 12 percent and customers are happier - looking good for Q3.
     
     def get_openai_api_call(self, messages):
         try:
-            # Get the deployment name from environment or use default
             deployment_name = os.environ.get('AZURE_OPENAI_DEPLOYMENT_NAME', 'gpt-deployment')
             
             response = self.client.chat.completions.create(
@@ -449,68 +425,52 @@ Revenue's up 12 percent and customers are happier - looking good for Q3.
             logging.error(f"Error in OpenAI API call: {str(e)}")
             raise
     
-    def parse_response_with_voice(self, content):
-        """Parse the response to extract formatted and voice parts"""
+    def parse_response_with_game_data(self, content):
+        """Parse the response to extract narrative and game data parts"""
         if not content:
-            return "", ""
+            return "", {}
         
-        # Split by the delimiter
-        parts = content.split("|||VOICE|||")
+        parts = content.split("|||GAME_DATA|||")
         
         if len(parts) >= 2:
-            # We have both parts
-            formatted_response = parts[0].strip()
-            voice_response = parts[1].strip()
+            narrative_response = parts[0].strip()
+            try:
+                game_data = json.loads(parts[1].strip())
+            except:
+                game_data = {}
         else:
-            # No voice delimiter found, generate a simple voice response
-            formatted_response = content.strip()
-            # Extract a simple summary for voice
-            sentences = formatted_response.split('.')
-            if sentences:
-                voice_response = sentences[0].strip() + "."
-                # Remove any formatting from voice response
-                voice_response = re.sub(r'\*\*|`|#|>|---', '', voice_response)
-                voice_response = re.sub(r'\s+', ' ', voice_response).strip()
-            else:
-                voice_response = "I've completed your request."
+            narrative_response = content.strip()
+            game_data = {}
         
-        return formatted_response, voice_response
+        return narrative_response, game_data
 
     def get_response(self, prompt, conversation_history, max_retries=3, retry_delay=2):
         try:
-            # Clean up conversation history to prevent memory issues
             if isinstance(conversation_history, list):
-                # Limit conversation history to last 20 messages to prevent memory issues
                 if len(conversation_history) > 20:
                     conversation_history = conversation_history[-20:]
                     logging.info(f"Trimmed conversation history to last 20 messages")
             
-            # Check if this is a first-time initialization with just a GUID
-            # or if a GUID is in the conversation history or current prompt
             guid_from_history = self._check_first_message_for_guid(conversation_history)
             guid_from_prompt = self.extract_user_guid(prompt)
             
             target_guid = guid_from_history or guid_from_prompt
             
-            # Set or update the memory context if we have a GUID that's different from current
             if target_guid and target_guid != self.user_guid:
                 self.user_guid = target_guid
                 self._initialize_context_memory(self.user_guid)
                 logging.info(f"User GUID updated to: {self.user_guid}")
             elif not self.user_guid:
-                # If for some reason we don't have a user_guid, set it to the default
                 self.user_guid = DEFAULT_USER_GUID
                 self._initialize_context_memory(self.user_guid)
                 logging.info(f"Using default User GUID: {self.user_guid}")
             
-            # Ensure prompt is string
             prompt = str(prompt) if prompt is not None else ""
             
-            # Skip processing if the prompt is just a GUID and we've already set the context
             if guid_from_prompt and prompt.strip() == guid_from_prompt and self.user_guid == guid_from_prompt:
-                formatted = "I've successfully loaded your conversation memory. How can I assist you today?"
-                voice = "I've loaded your memory - what can I help you with?"
-                return formatted, voice, ""
+                formatted = "Game world initialized. Your adventure awaits!"
+                game_data = {"event": "world_init", "status": "ready"}
+                return formatted, json.dumps(game_data), ""
             
             messages = self.prepare_messages(conversation_history)
             messages.append(ensure_string_content({"role": "user", "content": prompt}))
@@ -523,42 +483,38 @@ Revenue's up 12 percent and customers are happier - looking good for Q3.
                 try:
                     response = self.get_openai_api_call(messages)
                     assistant_msg = response.choices[0].message
-                    msg_contents = assistant_msg.content or ""  # Ensure content is never None
+                    msg_contents = assistant_msg.content or ""
 
                     if not assistant_msg.function_call:
-                        formatted_response, voice_response = self.parse_response_with_voice(msg_contents)
-                        return formatted_response, voice_response, "\n".join(map(str, agent_logs))
+                        narrative_response, game_data = self.parse_response_with_game_data(msg_contents)
+                        return narrative_response, json.dumps(game_data), "\n".join(map(str, agent_logs))
 
                     agent_name = str(assistant_msg.function_call.name)
                     agent = self.known_agents.get(agent_name)
 
                     if not agent:
-                        return f"Agent '{agent_name}' does not exist", "I couldn't find that agent.", ""
+                        return f"Agent '{agent_name}' does not exist", "{}", ""
 
-                    # Process function call arguments
                     json_data = ensure_string_function_args(assistant_msg.function_call)
                     logging.info(f"JSON data before parsing: {json_data}")
 
                     try:
                         agent_parameters = safe_json_loads(json_data)
                         
-                        # Sanitize parameters - ensure none are undefined or None
                         sanitized_parameters = {}
                         for key, value in agent_parameters.items():
                             if value is None:
-                                sanitized_parameters[key] = ""  # Convert None to empty string
+                                sanitized_parameters[key] = ""
                             else:
                                 sanitized_parameters[key] = value
                         
-                        # Add user_guid to agent parameters if agent accepts it
-                        # Always use the current user_guid (which might be the default)
-                        if agent_name in ['ManageMemory', 'ContextMemory']:
+                        if agent_name in ['ManageMemory', 'ContextMemory', 'GameWorldAgent', 'NPCDialogueAgent', 
+                                         'QuestGeneratorAgent', 'CombatNarratorAgent', 'LootMasterAgent',
+                                         'StoryProgressionAgent', 'RandomEventAgent']:
                             sanitized_parameters['user_guid'] = self.user_guid
                         
-                        # Always perform agent call - no caching
                         result = agent.perform(**sanitized_parameters)
                         
-                        # Ensure result is a string
                         if result is None:
                             result = "Agent completed successfully"
                         else:
@@ -568,38 +524,31 @@ Revenue's up 12 percent and customers are happier - looking good for Q3.
                             
                     except Exception as e:
                         logging.error(f"Error in agent execution: {str(e)}")
-                        return f"Error parsing parameters: {str(e)}", "I hit an error processing that.", ""
+                        return f"Error executing agent: {str(e)}", "{}", ""
 
-                    # Add the function result to messages
                     messages.append({
                         "role": "function",
                         "name": agent_name,
                         "content": result
                     })
                     
-                    # EVALUATION: Check if we need a follow-up function call
                     try:
                         result_json = json.loads(result)
-                        # Look for error indicators or incomplete data flags
                         needs_follow_up = False
                         if isinstance(result_json, dict):
-                            # Check for error indicators
                             if result_json.get('error') or result_json.get('status') == 'incomplete':
                                 needs_follow_up = True
-                            # Check for specific indicators that another action is needed
                             if result_json.get('requires_additional_action') == True:
                                 needs_follow_up = True
                     except:
-                        # If we can't parse the result as JSON, assume no follow-up needed
                         needs_follow_up = False
                     
-                    # If we don't need a follow-up, get the final response and return
                     if not needs_follow_up:
                         final_response = self.get_openai_api_call(messages)
                         final_msg = final_response.choices[0].message
-                        final_content = final_msg.content or ""  # Ensure content is never None
-                        formatted_response, voice_response = self.parse_response_with_voice(final_content)
-                        return formatted_response, voice_response, "\n".join(map(str, agent_logs))
+                        final_content = final_msg.content or ""
+                        narrative_response, game_data = self.parse_response_with_game_data(final_content)
+                        return narrative_response, json.dumps(game_data), "\n".join(map(str, agent_logs))
 
                 except Exception as e:
                     retry_count += 1
@@ -608,13 +557,13 @@ Revenue's up 12 percent and customers are happier - looking good for Q3.
                         time.sleep(retry_delay)
                     else:
                         logging.error(f"Max retries reached. Error: {str(e)}")
-                        return "An error occurred. Please try again.", "Something went wrong - try again.", ""
+                        return "An error occurred. Please try again.", "{}", ""
 
-            return "Service temporarily unavailable. Please try again later.", "Service is down - try again later.", ""
+            return "Service temporarily unavailable. Please try again later.", "{}", ""
             
         except Exception as e:
             logging.error(f"Critical error in get_response: {str(e)}")
-            return "A critical error occurred. Please try again.", "Something went wrong - try again.", ""
+            return "A critical error occurred. Please try again.", "{}", ""
 
 app = func.FunctionApp()
 
@@ -647,25 +596,20 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             headers=cors_headers
         )
 
-    # Ensure user_input is string, handle None case
     user_input = req_body.get('user_input')
     if user_input is None:
         user_input = ""
     else:
         user_input = str(user_input)
     
-    # Ensure conversation_history is list and contents are properly formatted
     conversation_history = req_body.get('conversation_history', [])
     if not isinstance(conversation_history, list):
         conversation_history = []
     
-    # Extract user_guid if provided in the request
     user_guid = req_body.get('user_guid')
     
-    # Skip validation if input is just a GUID to load memory
     is_guid_only = re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', user_input.strip(), re.IGNORECASE)
     
-    # Validate user input for non-GUID requests
     if not is_guid_only and not user_input.strip():
         return func.HttpResponse(
             json.dumps({
@@ -678,27 +622,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     try:
         agents = load_agents_from_folder()
-        # Create a new Assistant instance for each request
         assistant = Assistant(agents)
         
-        # Set user_guid if provided in the request or found in input
         if user_guid:
             assistant.user_guid = user_guid
             assistant._initialize_context_memory(user_guid)
         elif is_guid_only:
             assistant.user_guid = user_input.strip()
             assistant._initialize_context_memory(user_input.strip())
-        # Otherwise, the default GUID will be used (already set in __init__)
             
-        assistant_response, voice_response, agent_logs = assistant.get_response(
+        assistant_response, game_data, agent_logs = assistant.get_response(
             user_input, conversation_history)
 
-        # Include GUID and voice response in output
         response = {
             "assistant_response": str(assistant_response),
-            "voice_response": str(voice_response),
+            "game_data": game_data,
             "agent_logs": str(agent_logs),
-            "user_guid": assistant.user_guid  # Return the GUID in use (could be default or provided)
+            "user_guid": assistant.user_guid
         }
 
         return func.HttpResponse(
